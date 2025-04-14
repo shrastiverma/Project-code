@@ -1,0 +1,74 @@
+/**Header Icon*/
+<div class="search toggle"><i class="icons search"></i></div>
+ <?php echo zigcy_lite_product_search(); ?>
+
+/** Header searchbar.php 
+ * Advance WooCommerce Product Search With Category
+**/
+if(!function_exists ('zigcy_lite_product_search')){
+	
+	function zigcy_lite_product_search(){
+		
+		$args = array(
+			'number'     => '',
+			'orderby'    => 'name',
+			'order'      => 'ASC',
+			'hide_empty' => true
+		);
+		$product_categories = get_terms( 'product_cat', $args ); 
+		$categories_show = '<option value="">'.esc_html__('All Categories','zigcy-lite').'</option>';
+		$check = '';
+		if(is_search()){
+			if(isset($_GET['term']) && $_GET['term']!=''){
+				$check = isset($_GET['term']) ? sanitize_text_field( wp_unslash( $_GET['term'] ) ): '';
+
+
+			}
+		}
+		$checked = '';
+		$allcat = esc_html__('All Categories','zigcy-lite');
+		$categories_show .= '<optgroup class="sm-advance-search" label="'.$allcat.'">';
+		foreach($product_categories as $category){
+			if(isset($category->slug)){
+				if(trim($category->slug) == trim($check)){
+					$checked = 'selected="selected"';
+				}
+				$categories_show  .= '<option '.$checked.' value="'.$category->slug.'">'.$category->name.'</option>';
+				$checked = '';
+			}
+		}
+		$categories_show .= '</optgroup>';
+	    $form = '<form class="searchbox" autocomplete="off" role="search" method="get" id="searchform"  action="' . esc_url( home_url( '/'  ) ) . '">
+		<div class="container">
+		<div class="title">What are you looking for?</div>
+		<div class="control">
+		<input type="text" name="s"  id="keyword" class="input_search" onkeyup="search_fetch()" placeholder="' .esc_attr__('Search Products','zigcy-lite'). '" autocomplete="off" class="searchbox-input" >
+			<button type="submit" id="searchsubmit" class="searchbox-submit">
+			</button>
+		</div>
+		<a href="javascript:void(0)" class="search-close">X</a>
+	
+		<div id="datafetch"></div>
+		</div>
+		
+		</form>';  
+
+				
+
+		return $form;
+		
+	}
+
+}
+
+
+/**Script */
+<script>
+$("input#keyword").keyup(function() {
+      if ($(this).val().length > 2) {
+        $("#datafetch").show();
+      } else {
+        $("#datafetch").hide();
+      }
+    });
+    </script>
