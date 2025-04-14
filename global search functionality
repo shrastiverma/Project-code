@@ -72,3 +72,133 @@ $("input#keyword").keyup(function() {
       }
     });
     </script>
+
+/**Function file*/
+*
+ ==================
+ Ajax Search
+======================
+*/
+// add the ajax fetch js
+add_action( 'wp_footer', 'ajax_fetch' );
+function ajax_fetch() {
+?>
+<script type="text/javascript">
+function search_fetch(){
+    jQuery.ajax({
+        url: '<?php echo admin_url("admin-ajax.php"); ?>',
+        type: 'post',
+        data: { action: 'data_fetch', keyword: jQuery('#keyword').val() },
+        success: function(data) {
+            jQuery('#datafetch').html( data );
+        }
+    });
+}
+</script>
+<?php
+}
+// the ajax function
+add_action('wp_ajax_data_fetch' , 'data_fetch');
+add_action('wp_ajax_nopriv_data_fetch','data_fetch');
+function data_fetch(){
+	global $product,$wpdb;
+	$search_txt = $_POST['keyword'];
+    $the_query = new WP_Query( array( 'posts_per_page' => 6, 'post_type' => 'publish', 's' => esc_attr( $_POST['keyword'] ),
+	'post_type' => array('page','product','product_variation','post','video','guides') ) );
+    $the_product = new WP_Query( array( 'posts_per_page' => 6, 'post_type' => 'publish', 's' => esc_attr( $_POST['keyword'] ),
+	'post_type' => array('product','product_variation') ) );
+	$the_page= new WP_Query( array( 'posts_per_page' => 6, 'post_type' => 'publish', 's' => esc_attr( $_POST['keyword'] ),
+		'post_type' => array('page') ) );
+	$the_post= new WP_Query( array( 'posts_per_page' => 6, 'post_type' => 'publish', 's' => esc_attr( $_POST['keyword'] ),
+			'post_type' => array('post') ) );
+	$the_video= new WP_Query( array( 'posts_per_page' => 6, 'post_type' => 'publish', 's' => esc_attr( $_POST['keyword'] ),
+		'post_type' => array('video') ) );
+	$the_guides= new WP_Query( array( 'posts_per_page' => 6, 'post_type' => 'publish', 's' => esc_attr( $_POST['keyword'] ),
+		'post_type' => array('guides') ) );
+	if( $the_query->have_posts() ) :
+		echo '<div class="search_box">';
+		if( $the_product->have_posts() ) {
+		echo '<div class="combination_box"> 	<h2>Products</h2>';
+			while( $the_product->have_posts() ): $the_product->the_post();?>
+				<div class="image_thumb"><a href="<?php echo esc_url( post_permalink() ); ?>"><?php the_post_thumbnail();?>
+				<?php the_title();?></a>
+				</div>
+		<?php endwhile;
+		echo '</div>';}
+		$args = array(
+				'taxonomy'      => array( 'product_cat' ), // taxonomy name
+				'orderby'       => 'id',
+				'order'         => 'ASC',
+				'hide_empty'    => true,
+				'fields'        => 'all',
+				'name__like'    => $search_txt
+			);
+			$terms = get_terms( $args );
+			$count = count($terms);
+			foreach ($terms as $term) {
+				$searched_cat_id= $term->term_id;
+				$searched_cat_name= $term->name;
+				$searched_cat_slug= $term->slug;
+				$searched_cat_link= get_term_link($searched_cat_id,'product_cat');
+							   echo '<div class="srchListWrap ">';
+							   echo "<h2>Categories</h2>";
+							   echo '<a class="shpByLink" href="' . $searched_cat_link . '">' . $searched_cat_name . '</a>';
+							   $cat_count++;
+						   }
+						 	if( $the_post->have_posts() ) {
+				echo '<div class="combination_box"> 	<h2>Blogs</h2>';
+				while( $the_post->have_posts() ): $the_post->the_post();?>
+					<div class="image_thumb"><a href="<?php echo esc_url( post_permalink() ); ?>"><?php the_post_thumbnail();?>
+					<?php the_title();?></a>
+					</div>
+				<?php	endwhile; echo '</div>'; }
+					if( $the_video->have_posts() ) {
+						global $post;
+					echo '<div class="combination_box"> 	<h2>Videos</h2>';
+					while( $the_video->have_posts() ): $the_video->the_post();?>
+					<?php $chapname = get_the_terms($post->ID, 'video_cat');?>
+						<div class="image_thumb"><a href="<?php echo esc_url( post_permalink() ); ?>">
+									<?php $video = get_field('video');?>
+						        <?php if(!empty( $video ) ): ?>
+						            <img src="https://i1.ytimg.com/vi/<?php echo $video;?>/maxresdefault.jpg" alt="maxresdefault">
+						        <?php endif?>
+						<?php the_title();?></a></div>
+					<?php	endwhile; }
+		 if( $the_guides->have_posts() ) {
+			echo '<div class="combination_box"> 	<h2>Health Guides</h2>';
+			while( $the_guides->have_posts() ): $the_guides->the_post();?>
+			<div class="image_thumb"><a href="<?php echo esc_url( post_permalink() ); ?>"><?php the_post_thumbnail();?>
+				<?php the_title();?></a>
+			</div>
+			<?php	endwhile;
+		echo '</div>'; }
+		 	if( $the_page->have_posts() ) {
+			echo '<div class="combination_box"> 	<h2>Page</h2>';
+				while( $the_page->have_posts() ): $the_page->the_post();?>
+					<div class="image_thumb"><a href="<?php echo esc_url( post_permalink() ); ?>"><?php the_post_thumbnail();?>
+						<?php the_title();?></a>
+					</div>
+				<?php	endwhile;
+ 	echo '</div>';	}
+       echo '</div>';
+	   wp_reset_postdata();
+	else:
+		echo "No result found";
+    endif;
+die();
+}
+function post_type_include( $query ) {
+    if ( $query->is_main_query() && $query->is_search() && ! is_admin() ) {
+        $query->set( 'post_type', array( 'post','page', 'product' ) );
+    }
+}
+add_action( 'pre_get_posts', 'post_type_include' );
+add_filter( 'posts_search', 'include_password_posts_in_search' );
+function include_password_posts_in_search( $search ) {
+    global $wpdb;
+    if( !is_user_logged_in() ) {
+        $pattern = " AND ({$wpdb->prefix}posts.post_password = '')";
+        $search = str_replace( $pattern, '', $search );
+    }
+    return $search;
+}
