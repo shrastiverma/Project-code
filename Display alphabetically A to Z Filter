@@ -1,0 +1,172 @@
+/**Template A to Z product*/
+<div class="container">
+  <div class="row">
+    <div class="col-lg-12 pb-4 text-center">
+      <h1 class="inner-title">
+        <?php the_title (); ?>
+      </h1>
+    </div>
+    <div class="col-lg-4 pro-left-area">
+		<div class="product-search-row-wrap">
+      <div class="product-box pro-search-box">
+        <form autocomplete="off" role="search" method="get" id="searchform" action="<?php echo get_site_url(); ?>" >
+          <input required type="text" name="s"  id="keyword" class="input-search" onkeyup="search_fetch()" placeholder="Search Products" required autocomplete="off" class="searchbox-input" required >
+          <button type="submit" id="searchsubmit" class="searchbox-submit"> </button>
+        </form>
+      </div>
+			<div class="mobile-filter-hamburger"></div>
+
+      </div>
+      <div class="product-box filter-box">
+		  <div class="filter-cross">x</div>
+        <div class="product-box-head">Filter by Category</div>
+        <ul>
+          <li><a href="<?php $category->term_id; ?>" class="product-cat-filter current-product-page">Products A-Z</a></li>
+            <?php
+            $parent_categories = get_categories(array(
+              'parent' => 0
+            ));
+
+            foreach ($parent_categories as $category) {
+              echo '<li><a href="'.$category->term_id.'" class="product-cat-filter" >'.$category->name.'</a></li>';
+            }
+            ?>
+        </ul>
+      </div>
+    </div>
+    <div class="col-lg-8">
+      <div class="all-pro-row">
+        <div class="all-box-wrapper">
+          <?php
+          $args = array(
+            'orderby' => 'name',
+            'parent' => 0,
+            'hierarchical' => 1,
+            'post_type' => 'post',
+            'post_per_page'=>-1
+            );
+          $categories = get_categories( $args );
+          $first = true;
+            $letters = range('A', 'Z');
+          foreach ($letters as $letter) { ?>
+          <div class="product-box">
+              <a class="box-position-point dd" name="box_<?php echo $letter; ?>">.</a>
+             <?php  echo ' <div class="product-box-head">' . $letter . '</div>';
+              foreach ($categories as $category) {
+                if (strtoupper(substr($category->name, 0, 1)) === $letter) {
+                  if ( $first ) {
+                      echo '<li><a href="'.get_category_link( $category->term_id ).'">'.$category->cat_name.'</a>';
+                      $first = false;
+                  }else{
+                      echo '<li><a href="'.get_category_link( $category->term_id ).'">'.$category->cat_name.'</a>';
+                  }
+                    $theid = $category->term_id;
+                    $children = $wpdb->get_results( "SELECT term_id FROM $wpdb->term_taxonomy WHERE parent=$theid" );
+                      $no_children = count($children);
+                    // if ($no_children > 0) {
+                      echo "<ul>";
+                      $args2 = array(
+                      'orderby' => 'name',
+                      'parent' => 2
+                      );
+                      $args2["parent"]=$category->term_id;
+                      $categories2 = get_categories( $args2 );
+                      foreach ($categories2 as $category2) {
+                      echo '<li><a href="'.get_category_link( $category->term_id ).'">'.$category2->cat_name.'</a></li>';
+                  }
+                 echo '</ul>';
+              //} else {
+             // echo '</li>';
+              //}
+                    }
+                  }?>
+            </div>
+          <?php } //} ?>
+
+
+          <!-- product-box -->
+
+
+        </div>
+        <!-- all-box-wrapper -->
+
+        <div class="alphabet-row">
+          <ul>
+          <?php
+          $letters = range('A', 'Z');
+            foreach ($letters as $letter) {
+                echo ' <li><a href="#box_'.$letter.'">' . $letter . '</a></li>';
+            }
+            ?>
+
+
+          </ul>
+        </div>
+        <!-- alphabet-row -->
+      </div>
+      <!-- all-pro-row -->
+      <div class="load_icon" style="display:none;"><div class="load_icon_wrap"><img src="<?php bloginfo('template_url'); ?>/assets/images/loader.gif" alt="" ></div></div>
+    </div>
+  </div>
+</div>
+<script type="text/javascript">
+
+
+// Start Mobile Filter
+jQuery(document).ready(function() {
+	if(screen.width<=990){
+jQuery('.mobile-filter-hamburger').click(function() {
+  jQuery('.filter-box').css("display", "block");
+    jQuery('.site-overlay').css("display", "block");
+	jQuery('body').addClass('overflowhidden');
+	});
+ jQuery('.filter-cross,.product-cat-filter').click(function() {
+ jQuery('.filter-box').css("display", "none");
+    jQuery('.site-overlay').css("display", "none");
+	jQuery('body').removeClass('overflowhidden');
+		});
+		}
+	});
+// End  Mobile Filter
+
+</script>
+
+
+/********Ajax all post.js file************/
+ jQuery('.product-cat-filter').click( function(event) {
+
+      // Prevent default action - opening tag page
+      if (event.preventDefault) {
+          event.preventDefault();
+      } else {
+          event.returnValue = false;
+      }
+
+      // Get tag slug from title attirbute
+      var selecetd_taxonomy = $(this).attr('title');
+      var selecetd_cat = $(this).attr('href');
+     // console.log(selecetd_cat);
+      $(".product-cat-filter"). removeClass('current-product-page');
+      $(this).addClass('current-product-page');
+     // var hash = selecetd_cat.substring(selecetd_cat.indexOf('=')+1);
+     // $('.all-box-wrapper').fadeOut();
+     $('.load_icon').show();
+
+      data = {
+          action: 'filter_posts_cat', // function to execute
+          afp_nonce: afp_vars.afp_nonce, // wp_nonce
+          taxonomy: selecetd_cat, // selected tag
+          //category_id: hash,
+  };
+
+      $.post( afp_vars.afp_ajax_url, data, function(response) {
+
+          if( response ) {
+              $('.all-box-wrapper').html( response );
+              $('.load_icon').hide();
+              //$('.all-box-wrapper').fadeIn();
+          };
+      });
+  });
+
+});
