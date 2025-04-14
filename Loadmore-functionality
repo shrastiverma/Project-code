@@ -1,0 +1,158 @@
+/**Blog file*/
+<?php
+        $paged = (get_query_var('paged')) ? get_query_var('paged') : 1;
+        $args = array(
+            'post_type'      => 'post',
+            'posts_per_page' => 6,
+            'paged'          => $paged,
+        );
+
+        $query = new WP_Query($args);
+        $total_posts_all = $query->found_posts;
+		$post_count = 0;
+        if ($query->have_posts()) :
+            echo '<div class="post-detail"><ul class="blog-listing" id="all-posts">';
+            while ($query->have_posts()) : $query->the_post(); ?>
+                <li class="js-scroll fade-in-bottom" data-post-id="<?php the_ID(); ?>">
+                    <a href="<?php the_permalink(); ?>">
+                        <?php if (has_post_thumbnail()) { ?>
+                            <figure>
+                                <?php
+                                	$thumb_id = get_post_thumbnail_id();
+                                	$thumb_alt = get_post_meta($thumb_id, '_wp_attachment_image_alt', true);
+                                	the_post_thumbnail('medium', ['alt' => $thumb_alt]);
+                                ?>
+							</figure>
+                        <?php } else { ?>
+                            <figure><img src="<?php echo get_template_directory_uri(); ?>/assets/images/no_image.png" alt="no image"></figure>
+                        <?php } ?>
+                        <div class="cnt-bx">
+                            <span class="date"><?php echo get_the_date(); ?></span>
+                            <p><?php the_title(); ?></p>
+                        </div>
+                    </a>
+                </li>
+            <?php  $post_count++;  endwhile;
+            echo '</ul></div>';
+
+            if ($post_count > 3) : ?>
+           <button class="button btn-pink js-scroll fade-in-bottom scrolled load-more" data-paged="1" data-post-count="<?= esc_attr($total_posts_all); ?>"><span>LOAD MORE</span></button>
+            <?php endif;
+            wp_reset_postdata();
+        else :
+            echo '<p>No posts found.</p>';
+        endif;
+        ?>
+/**Function.php code */
+
+function load_more_combined_posts() {
+    $paged = isset($_POST['paged']) ? intval($_POST['paged']) : 1;
+    $posts_per_page = 6;
+
+    // Calculate the offset
+    $offset = ($paged - 1) * $posts_per_page;
+
+    $args = array(
+        'post_type'      => 'post',
+        'posts_per_page' => $posts_per_page,
+        'paged'          => $paged,
+        'offset'         => $offset,  // Skip posts already loaded
+    );
+
+    if (!empty($_POST['query_type']) && $_POST['query_type'] === 'author' && !empty($_POST['author_id'])) {
+        $args['author'] = intval($_POST['author_id']);
+    }
+    if (!empty($_POST['query_type']) && $_POST['query_type'] === 'category' && !empty($_POST['category_id'])) {
+        $args['cat'] = intval($_POST['category_id']);
+    }
+
+    $query = new WP_Query($args);
+
+    if ($query->have_posts()) :
+        while ($query->have_posts()) : $query->the_post(); ?>
+            <li class="js-scroll fade-in-bottom scrolled" data-post-id="<?php the_ID(); ?>">
+                <a href="<?php the_permalink(); ?>">
+                    <?php if (has_post_thumbnail()) { ?>
+                        <figure><?php the_post_thumbnail('medium'); ?></figure>
+                    <?php } else { ?>
+                        <figure><img src="<?php echo get_template_directory_uri(); ?>/assets/images/no_image.png"></figure>
+                    <?php } ?>
+                    <div class="cnt-bx">
+                        <span class="date"><?php echo get_the_date(); ?></span>
+                        <p><?php the_title(); ?></p>
+                    </div>
+                </a>
+            </li>
+        <?php endwhile;
+
+    endif;
+
+    wp_reset_postdata();
+    wp_die();
+}
+
+add_action('wp_ajax_load_more_combined', 'load_more_combined_posts');
+add_action('wp_ajax_nopriv_load_more_combined', 'load_more_combined_posts');
+
+add_action('init', function() {
+    flush_rewrite_rules();
+});
+
+
+/**Script*/
+jQuery(document).ready(function ($) {
+    $(document).on('click', '.load-more', function (e) {
+        e.preventDefault();
+        var button = $(this);
+        var paged = parseInt(button.attr('data-paged')) + 1;
+        var totalPosts = parseInt(button.attr('data-post-count'));
+        var queryType = button.attr('data-query-type');
+        var authorId = button.attr('data-author-id');
+        var categoryId = button.attr('data-category-id');
+
+        $.ajax({
+            url: load_more_params.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'load_more_combined',
+                paged: paged,
+                query_type: queryType,
+                author_id: authorId,
+                category_id: categoryId,
+            },
+            beforeSend: function () {
+                button.html('<span>Loading...</span>');
+            },
+            success: function (response) {
+                console.log($(response).filter('li[data-post-id]'));
+                if ($.trim(response).length > 0) {
+                    var newPosts = $(response).filter('li[data-post-id]');
+
+                    // Append only posts that don't already exist in the DOM
+                    newPosts.each(function () {
+                        var postId = $(this).data('post-id');
+                        if ($('li[data-post-id="' + postId + '"]').length === 0) {
+                            $('#all-posts').append($(this));  // Append only unique posts
+                        }
+                    });
+
+                    button.attr('data-paged', paged);
+                    button.html('<span>Load More</span>');
+                                                                                                                                                                                
+                    // Hide the button if all posts are loaded
+                    if (paged * 6 >= totalPosts) {
+                        button.hide();
+                    }
+                } else {
+                    button.hide();  // Hide button if no more posts are returned
+                }
+            },
+            error: function (jqXHR, textStatus, errorThrown) {
+                console.error("AJAX Error: " + textStatus + ": " + errorThrown);
+                console.error(jqXHR.responseText);
+                button.text('Error loading posts. Please try again later.');
+            }
+        });
+    });
+});
+
