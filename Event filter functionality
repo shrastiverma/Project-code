@@ -1,0 +1,276 @@
+/**Event Listing*/
+<div class="container">
+        <div class="page-heading">
+        <h1 class="page-title">  <?php echo get_the_title();?></h1>
+        <div class="cnt"><?php echo get_the_content();?></div>
+        </div>
+
+            <div class="event-section mob-wrap">
+                <div id="events-container" class="left-bx  mob-100">
+                    <!-- Filtered Events will appear here -->
+                    <div class="event-listing">
+                        <?php
+                         $type = $_POST['type']; // all, upcoming, or past
+                         $category = $_POST['category']; // selected category
+
+                            $paged = isset($_POST['page']) ? intval($_POST['page']) : 1;
+                            $args = [
+                                'post_type' => 'events',
+                                'posts_per_page'=> 4,
+                                'post_status'=> 'publish',
+                                'orderby' => 'date', // Order by date
+                                'order' => 'DESC', // Latest first
+                                'paged' =>  $paged,
+
+                            ];
+                            $count_posts = wp_count_posts()->publish;
+                            $query = new WP_Query($args);
+                            // Build the output
+                            if ($query->have_posts()) {?>
+                            <ul class="blog-listing">
+                            <?php   while ($query->have_posts()) {
+                                    $query->the_post();?>
+                                    <li class="mob-100">
+                                    <a href=" <?php echo get_permalink()?>">
+                                    <figure><?php  echo get_the_post_thumbnail(); ?></figure>
+                                    <div class="cnt-bx">
+                                        <h3>  <?php echo  get_the_title();?></h3>
+                                        <div class="description"><?php  echo wp_trim_words(get_the_content(), 20, "..."); ?></div>
+                                        <div class="border-btn">Read More</div>
+                                    </div>
+                                    </a>
+                                    </li>
+
+                            <?php  }?>   </ul>
+                            <div class="pagination">
+                        <?php
+                        echo '<div class="pagination">';
+                        echo paginate_links([
+                            'base' => esc_url(add_query_arg('paged', '%#%')),
+                            'format' => '',
+                            'current' => max(1, $paged),
+                            'total' => $query->max_num_pages,
+                            'prev_text' => __('« Previous'),
+                            'next_text' => __('Next »'),
+                        ]);
+                        echo '</div>';
+                        ?>
+                    </div>
+                            <?php
+                            }wp_reset_postdata();?>
+
+
+
+                    </div>
+                </div>
+
+            <div class="right-bx mob-100">
+                    <div class="filter-section ">
+                        <h2>
+                            <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" id="Capa_1" x="0px" y="0px" viewBox="0 0 512.051 512.051" style="enable-background:new 0 0 512.051 512.051;" xml:space="preserve" width="512" height="512">
+                                <g>
+                                <path d="M21.359,101.359h58.368c11.52,42.386,55.219,67.408,97.605,55.888c27.223-7.399,48.489-28.665,55.888-55.888h257.472   c11.782,0,21.333-9.551,21.333-21.333s-9.551-21.333-21.333-21.333H233.22C221.7,16.306,178.001-8.716,135.615,2.804   c-27.223,7.399-48.489,28.665-55.888,55.888H21.359c-11.782,0-21.333,9.551-21.333,21.333S9.577,101.359,21.359,101.359z"></path>
+                                <path d="M490.692,234.692h-58.368c-11.497-42.38-55.172-67.416-97.552-55.92c-27.245,7.391-48.529,28.674-55.92,55.92H21.359   c-11.782,0-21.333,9.551-21.333,21.333c0,11.782,9.551,21.333,21.333,21.333h257.493c11.497,42.38,55.172,67.416,97.552,55.92   c27.245-7.391,48.529-28.674,55.92-55.92h58.368c11.782,0,21.333-9.551,21.333-21.333   C512.025,244.243,502.474,234.692,490.692,234.692z"></path>
+                                <path d="M490.692,410.692H233.22c-11.52-42.386-55.219-67.408-97.605-55.888c-27.223,7.399-48.489,28.665-55.888,55.888H21.359   c-11.782,0-21.333,9.551-21.333,21.333c0,11.782,9.551,21.333,21.333,21.333h58.368c11.52,42.386,55.219,67.408,97.605,55.888   c27.223-7.399,48.489-28.665,55.888-55.888h257.472c11.782,0,21.333-9.551,21.333-21.333   C512.025,420.243,502.474,410.692,490.692,410.692z"></path>
+                                </g>
+                            </svg>    
+                            Filter By
+                        </h2>
+                        <div id="event-filters">
+                        <div class="filter-row">
+                             <label>
+                                <input name="all" type="radio" class="filter-button current-event-page" data-type="all" data-category=""/>
+                                <span></span>
+                                All Events
+                            </label>
+                        </div>
+
+                        <?php
+                        $categories = get_terms(['taxonomy' => 'event-categories']);
+                        foreach ($categories as $category) {
+                            echo '<div name="' . $category->name . '" class="filter-row">
+                            <label>
+                            <input type="radio" id="filter-category"class="filter-button" data-type="all" data-category="' . $category->slug . '">' . $category->name . '</input>
+                             <span></span>
+                             </label>
+                            </div>';
+                        }?>
+                        <h3>Filter Type</h3>
+                        <div class="filter-row">
+                            <label>
+                                <input type="radio"  id= "filter-type" class="filter-button" data-type="upcoming" data-category="">Upcoming Events
+                                <span></span>
+                            </label>
+                         </div>
+                        <div class="filter-row">
+                            <label>
+                            <input type="radio"  id= "filter-type" class="filter-button" data-type="past" data-category="">Past Events</input>
+                            <span></span>
+                    </label>
+                        </div>
+                    <?php   //wp_reset_postdata();  ?>
+                    </div><!-- end filter-section-->
+            </div><!-- end event-s-->
+</div>
+
+/**Ajax code **/
+// Enqueue Scripts
+function enqueue_event_scripts() {
+    wp_enqueue_script('ajax-filter', get_template_directory_uri() . '/assets/js/ajax-filter-posts.js', ['jquery'], null, true);
+    wp_localize_script('ajax-filter', 'ajax_url', ['url' => admin_url('admin-ajax.php')]);
+
+
+}
+add_action('wp_enqueue_scripts', 'enqueue_event_scripts');
+
+// AJAX Handler for Filtering Events
+
+function ajax_filter_events() {
+    $type = isset($_POST['type']) ? sanitize_text_field($_POST['type']) : 'all';
+    $category = isset($_POST['category']) ? sanitize_text_field($_POST['category']) : '';
+    $paged = isset($_POST['page']) ? intval($_POST['page']) : 1;
+
+    $today = date("Ymd");
+    $meta_query = [];
+
+    if ($type === 'upcoming') {
+        $meta_query[] = [
+            'key' => 'date',
+            'value' => $today,
+            'compare' => '>=',
+            'type' => 'DATE',
+        ];
+    } elseif ($type === 'past') {
+        $meta_query[] = [
+            'key' => 'date',
+            'value' => $today,
+            'compare' => '<',
+            'type' => 'DATE',
+        ];
+    }
+
+    $args = [
+        'post_type' => 'events',
+		'post_status'=> 'publish',
+        'posts_per_page' => 4 ,
+        'paged' => $paged,
+        'meta_query' => $meta_query,
+        'orderby' => 'meta_value',
+        'meta_key' => 'date',
+        'order' => 'DESC',
+    ];
+
+    if (!empty($category)) {
+        $args['tax_query'] = [
+            [
+                'taxonomy' => 'event-categories',
+                'field' => 'slug',
+                'terms' => $category,
+            ],
+        ];
+    }
+
+    $query = new WP_Query($args);
+
+    if ($query->have_posts()) {
+        echo '<ul class="blog-listing">';
+        while ($query->have_posts()) {
+            $query->the_post(); ?>
+            <li class="mob-100">
+                <a href="<?php echo get_permalink(); ?>">
+                    <figure><?php echo get_the_post_thumbnail(); ?></figure>
+					<div class="cnt-bx">
+                    <h3><?php echo get_the_title(); ?></h3>
+                    <div class="description"><?php  echo wp_trim_words(get_the_content(), 20, "..."); ?></div>
+                    <div class="border-btn">Read More</div>
+					</div>
+                </a>
+            </li>
+            <?php
+        }
+        echo '</ul>';
+
+
+    // Generate pagination links
+?>
+      <div class="pagination">
+                        <?php
+                        echo '<div class="pagination">';
+                        echo paginate_links([
+                            'base' => esc_url(add_query_arg('paged', '%#%')),
+                            'format' => '',
+                            'current' => max(1, $paged),
+                            'total' => $query->max_num_pages,
+                            'prev_text' => __('« Previous'),
+                            'next_text' => __('Next »'),
+                        ]);
+                        echo '</div>';
+                        ?>
+                    </div>
+<?php
+  }
+
+    wp_reset_postdata();
+    wp_die();
+}
+add_action('wp_ajax_filter_events', 'ajax_filter_events');
+add_action('wp_ajax_nopriv_filter_events', 'ajax_filter_events');
+
+/**Custom Js*/
+
+jQuery(document).ready(function ($) {
+
+    // Handle filter button click
+    $('.filter-button').on('click', function (event) {
+        event.preventDefault();
+        let type = $(this).data('type');
+        let category = $(this).data('category');
+        let page = 1; // Reset to the first page when a new filter is applied
+
+        $(".filter-button").removeClass('current-event-page');
+        $(this).addClass('current-event-page');
+
+        loadEvents(type, category, page);
+    });
+
+    $(document).on('click', '.pagination a', function (e) {
+    e.preventDefault();
+    let page = $(this).data('page') || $(this).attr('href').split('paged=')[1];
+    let type = $('.filter-button.current-event-page').data('type') || 'all';
+    let category = $('.filter-button.current-event-page').data('category') || '';
+
+    loadEvents(type, category, page);
+});
+// Function to load events via AJAX
+    function loadEvents(type, category, page) {
+
+        $.ajax({
+            url: ajaxpagination.ajax_url, // Ensure ajax_url is localized in PHP
+            type: 'POST',
+            data: {
+                action: 'filter_events',
+                type: type,
+                category: category,
+                page: page,
+            },
+            success: function (response) {
+              $('#events-container').html(response);
+
+                updateActiveClass(page);
+                window.scrollTo({
+                    top: 70,
+                    behavior: 'smooth', // For smooth scrolling
+                });
+           },
+            error: function (xhr, status, error) {
+                console.error('AJAX Error:', error);
+            },
+        });
+    }
+
+    function updateActiveClass(currentPage) {
+        $('.pagination a').removeClass('active'); // Remove active class from all links
+        $('.pagination a[data-page="' + currentPage + '"]').addClass('active'); // Add active class to the current page link
+    }
+
+});
