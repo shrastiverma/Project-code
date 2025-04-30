@@ -1,0 +1,219 @@
+/*****Product-review.php*****/
+<div class="shop-loop-head">
+    <?php basel_current_breadcrumbs( 'shop' );   ?>
+</div>
+<div class="review__section">
+<h1>Customer Reviews</h1>
+<div class="review_customer">
+    <img src="<?php echo get_stylesheet_directory_uri(); ?>/images/review-banner.png">
+</div>
+    <div class="reviews-filter">
+    <div class="border-box">
+        <div id="review-rating">
+       <?php display_product_ratings_overview(); ?>
+    </div>
+
+    <div id="reviews-container">
+        <?php display_reviews();
+  ?>
+</div>
+    </div>
+    <div id="pagination-container">
+		<?php display_pagination(); ?>
+	</div>
+</div>
+<script>
+jQuery(document).ready(function($) {
+	var selected_rating = 'all';
+	function load_reviews(rating, page) {
+        $.ajax({
+            url: '<?php echo admin_url("admin-ajax.php"); ?>',
+            type: 'POST',
+            data: {
+                action: 'filter_reviews',
+                rating: rating,
+                page: page,
+                nonce: '<?php echo wp_create_nonce("filter_reviews_nonce"); ?>'
+            },
+            success: function(response) {
+                if(response.success) {
+                    $('#reviews-container').html(response.data.reviews);
+                    $('#pagination-container').html(response.data.pagination);
+                } else {
+                    console.log(response.data);
+                }
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                console.log(textStatus, errorThrown);
+            }
+        });
+    }
+    jQuery('#review-rating .rating').click(function() {
+        var rating = jQuery(this).data('value');
+        selected_rating = rating;
+        jQuery('#review-rating .rating').removeClass('selected');
+        jQuery(this).addClass('selected');
+        //jQuery(".allreviews").css("display", "block");
+        jQuery('#reviews-container').html("Loading...");
+        load_reviews(rating, 1);
+    });
+    jQuery('.ratings-summary').click(function() {
+        jQuery('.seeall').addClass('allreviews');
+    });
+    jQuery('.seeall').click(function() {
+        jQuery(this).removeClass('allreviews');
+    });
+
+    $(document).on('click', '.pagination a', function(e) {
+        e.preventDefault();
+        var page = $(this).attr('data-page');
+        var rating = selected_rating; //$('.rating').data('value');
+        load_reviews(rating, page);
+    });
+});
+</script>
+
+/****Function.php*****/
+function display_product_ratings_overview() {
+    global $wpdb;
+    // Query to get the count of each rating
+    $query = "
+        SELECT meta_value AS rating, COUNT(meta_value) AS count
+        FROM {$wpdb->commentmeta}
+        LEFT JOIN {$wpdb->comments} ON {$wpdb->comments}.comment_ID = {$wpdb->commentmeta}.comment_id
+        WHERE meta_key = 'rating' AND comment_approved = 1
+        GROUP BY meta_value
+    ";
+    $ratings = $wpdb->get_results($query, ARRAY_A);
+    $total_reviews = 0;
+    $ratings_count = [
+        '5' => 0,
+        '4' => 0,
+        '3' => 0,
+        '2' => 0,
+        '1' => 0,
+    ];
+    // Calculate total reviews and individual rating counts
+    foreach ($ratings as $rating) {
+        $total_reviews += $rating['count'];
+        $ratings_count[$rating['rating']] = $rating['count'];
+        $ratings_sum += $rating['rating'] * $rating['count'];
+    }
+    // Calculate percentages
+    $ratings_percentage = array_map(function($count) use ($total_reviews) {
+        return $total_reviews ? round(($count / $total_reviews) * 100, 2) : 0;
+    }, $ratings_count);
+// Calculate the overall average rating
+    $overall_average_rating = $total_reviews ? round($ratings_sum / $total_reviews, 2) : 0;
+	echo '<div class="basedreview">
+    <p><span class="star-rating"><span style="width:'.($overall_average_rating*10*2).'%"></span></span><br>' ;
+	echo ' Based on '.$total_reviews.' reviews <br>';?>
+
+    <?php
+    // Display the results
+    echo '<div class="divder"></div><div class="ratings-summary">';
+    $width= 100;$countdata =5;
+    foreach ($ratings_count as $rating => $count) {
+        echo '<div class="rating" data-value="'.$countdata.'">';
+        echo '<span class="star-rating"><span style="width:'.$width.'%"></span></span>';
+        echo $ratings_percentage[$rating] . '% (' . $count . ' Reviews)';
+        echo '</div>';
+        $width = $width-20;
+        $countdata--;
+    }
+
+    echo '</div> </div>';
+      ?>
+     <div class="main_review"> <a class="leave_review  button alt" href="<?php the_permalink()?>shop"> Leave a review </a>
+      <div class="seeall rating" style="display:none" data-value="all"><div class="button seerevi">See all reviews </div></div></div>
+      <?php
+}
+function display_reviews($rating = 'all', $page = 1) {
+    global $wpdb;
+    $per_page = 10;
+    $offset = ($page - 1) * $per_page;
+    $query = "
+        SELECT {$wpdb->comments}.comment_ID, comment_post_ID, comment_author, comment_content, comment_approved,
+              meta_value AS rating
+        FROM {$wpdb->comments}
+        LEFT JOIN {$wpdb->commentmeta} ON {$wpdb->comments}.comment_ID = {$wpdb->commentmeta}.comment_id
+        WHERE meta_key = 'rating' AND comment_approved = 1
+    ";
+    if ($rating !== 'all') {
+        $query .= $wpdb->prepare(" AND meta_value = %d", $rating);
+    }
+    $query .= " ORDER BY comment_date DESC LIMIT %d OFFSET %d";
+    $query = $wpdb->prepare($query, $per_page, $offset);
+    $reviews = $wpdb->get_results($query);
+// Display the comments
+
+if (!empty($reviews)) {
+    foreach ($reviews as $review) {
+        setup_postdata($review);
+        $product_id = $review->comment_post_ID;
+        $product = wc_get_product($review->comment_post_ID);
+        $dateStrings = get_comment_date('', $review->comment_ID);
+        $timestamp = strtotime($dateStrings);
+        $usDateFormat = date('m/d/Y', $timestamp);
+        echo '<div class="review">';
+        echo '<span class="reviewer-first-letter">' . strtoupper(substr($review->comment_author, 0, 1)) . '<span class="vc_icon_element-icon fas fa-check"></span> </span>';
+        echo wc_get_rating_html($review->rating);
+        echo '<span class="combination"><span class="date">' . $usDateFormat . ' about </span> <span class="product__name"><a href="' . get_permalink($product_id) . '">' . esc_html($product->get_name()) . '</a></span></span>';
+        echo '<div class="author"> ' . esc_html($review->comment_author) . '</div> ';
+        echo '<p class="content">' . esc_html($review->comment_content) . '</p>';
+        echo '</div>';
+    }
+    wp_reset_postdata();
+} else {
+    echo '<h3>No reviews found.</h3>';
+}
+//echo '</div>';
+}
+function display_pagination($rating = 'all', $page = 1) {
+    global $wpdb;
+    $per_page = 10;
+    $query = "
+        SELECT COUNT(*) AS total
+        FROM {$wpdb->comments}
+        LEFT JOIN {$wpdb->commentmeta} ON {$wpdb->comments}.comment_ID = {$wpdb->commentmeta}.comment_id
+        WHERE meta_key = 'rating' AND comment_approved = 1
+    ";
+    if ($rating !== 'all') {
+        $query .= $wpdb->prepare(" AND meta_value = %d", $rating);
+    }
+    $total_reviews = $wpdb->get_var($query);
+    $total_pages = ceil($total_reviews / $per_page);
+    echo '<div class="pagination">';
+        if ($page > 1) {
+            $prev_page = $page - 1;
+            echo '<a href="#" class="' . $active . '" data-page="' . $prev_page . '">  Previous</a> ';
+        }
+    if ($total_pages > 1) {
+        for ($i = 1; $i <= $total_pages; $i++) {
+            $active = ($i == $page) ? 'active' : '';
+            echo '<a href="#" class="' . $active . '" data-page="' . $i . '">' . $i . '</a> ';
+        }
+    }
+if ($page < $total_pages) {
+    $next_page = $page + 1;
+    echo '<a href="#" class="' . $active . '" data-page="' . $next_page . '">  Next</a> ';
+}
+echo '</div>';
+}
+function filter_reviews() {
+    check_ajax_referer('filter_reviews_nonce', 'nonce');
+    $rating = isset($_POST['rating']) ? sanitize_text_field($_POST['rating']) : 'all';
+    $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+    ob_start();
+    display_reviews($rating, $page);
+    $reviews_html = ob_get_clean();
+    ob_start();
+    display_pagination($rating, $page);
+    $pagination_html = ob_get_clean();
+    wp_send_json_success([
+        'reviews' => $reviews_html,
+        'pagination' => $pagination_html
+    ]);
+}
+add_action('wp_ajax_filter_reviews', 'filter_reviews');
+add_action('wp_ajax_nopriv_filter_reviews', 'filter_reviews');
