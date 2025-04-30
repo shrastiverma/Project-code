@@ -1,0 +1,180 @@
+/******loadmore.js*****/
+jQuery(document).ready(function($) {
+    $('.tab').on('click', function() {
+        $('.tab').removeClass('active');
+        $(this).addClass('active');
+
+        var category = $(this).data('category');
+
+        $('.tab-content').hide();
+        if (category === 'all') {
+            $('#all-posts').closest('.tab-content').show();
+        } else {
+            $('.category-posts[data-cat="' + category + '"]').closest('.tab-content').show();
+        }
+    });
+    $(document).on('click', '.load-more', function() {
+        var button = $(this);
+        var paged = parseInt(button.attr('data-paged')) + 1;
+        var catId = button.attr('data-cat');
+        var totalPosts = parseInt(button.attr('data-post-count'));
+        console.log(totalPosts);
+
+        $.ajax({
+            url: load_more_params.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'load_more',
+                paged: paged,
+                cat_id: catId
+            },
+            success: function(response) {
+                if ($.trim(response).length > 0) {
+                    if (catId) {
+                        $('.category-posts[data-cat="' + catId + '"]').append(response);
+                    } else {
+                        $('#all-posts').append(response);
+                    }
+                    button.attr('data-post-count', paged);
+                }
+
+                // Hide button when no more posts
+                if ($.trim(response).length === 0 || paged * 5 >= totalPosts) {
+                    button.hide();
+                }
+            }
+        });
+    });
+});
+
+
+/****template-blog.php**/
+ <section class="weekly-market">
+    <div class="container">
+        <?php $title = get_field('title');
+        $description = get_field('description'); ?>
+        <h2 class="heading"><?php echo $title;?></h2>
+        <div class="description"><?php echo $description;?></div>
+      <div class="tab-filter">
+      <div class="category-tabs">
+          <div class="tab active" data-category="all">All</div>
+          <?php
+
+          $categories = get_categories(array(
+            'hide_empty' => false, // Show categories even if they have zero posts
+        ));
+
+          foreach ($categories as $category) {
+              echo '<div class="tab" data-slide="" data-category="'. esc_attr($category->term_id) .'">'. esc_html($category->name) .'</div>';
+          }
+          ?>
+      </div>
+
+      <div class="tab-content">
+    <div class="category-posts" id="all-posts">
+        <?php
+        $query_all = new WP_Query(['posts_per_page' => 5]);
+        $total_posts_all = $query_all->found_posts;
+        $post_count = 0;
+
+        if ($query_all->have_posts()) {
+            while ($query_all->have_posts()) {
+                $query_all->the_post();
+                echo '
+                <div class="post-detail">
+                    <h3><a href="'. get_permalink() .'">'. get_the_title() .'</a></h3>
+                    <div class="cnt-bx">'. wp_trim_words(get_the_content(), 25, "...") .'</div>
+                    <div class="author-detail">
+                        <span class="author-pic">'. get_avatar(get_the_author_meta('ID')) .'</span> By
+                        <span class="author-name">'. get_the_author() .'</span> on | '. get_the_date('M dS, Y') .'
+                    </div>
+                </div>';
+                $post_count++;
+            }
+            wp_reset_postdata();
+        } else{echo '<h4>No posts found.</h4>';} ?>
+    </div>
+
+    <?php if ($post_count > 4) : ?>
+        <div class="more-post">
+            <button class="load-more" data-paged="1" data-cat="" data-post-count="<?= esc_attr($total_posts_all); ?>">LOAD MORE ARTICLES</button>
+        </div>
+    <?php endif; ?>
+</div>
+
+<?php foreach ($categories as $category) : ?>
+    <div class="tab-content" style="display: none;">
+        <div class="category-posts" data-cat="<?= esc_attr($category->term_id); ?>">
+            <?php
+            $query = new WP_Query(['cat' => $category->term_id, 'posts_per_page' => 5]);
+            $total_posts_cat = $query->found_posts;
+            $post_count = 0;
+
+            if ($query->have_posts()) {
+                while ($query->have_posts()) {
+                    $query->the_post();
+                    echo '
+                    <div class="post-detail">
+                        <h3><a href="'. get_permalink() .'">'. get_the_title() .'</a></h3>
+                        <div class="cnt-bx">'. wp_trim_words(get_the_content(), 25, "...") .'</div>
+                        <div class="author-detail">
+                            <span class="author-pic">'. get_avatar(get_the_author_meta('ID')) .'</span> By
+                            <span class="author-name">'. get_the_author() .'</span> on | '. get_the_date('M dS, Y') .'
+                        </div>
+                    </div>';
+                    $post_count++;
+                }
+                wp_reset_postdata();
+              } else{echo '<h4>No posts found.</h4>';}
+            ?>
+        </div>
+
+        <?php if ($post_count > 4 ) : ?>
+            <button class="load-more" data-paged="1" data-cat="<?= esc_attr($category->term_id); ?>" data-post-count="<?= esc_attr($total_posts_cat); ?>">LOAD MORE ARTICLES</button>
+        <?php endif; ?>
+    </div>
+<?php endforeach; ?>
+
+/***Function.php***/
+function load_more_scripts() {
+    wp_enqueue_script('jquery');
+    wp_enqueue_script('load-more', get_template_directory_uri() . '/assets/js/loadmore.js', ['jquery'], null, true);
+    wp_localize_script('load-more', 'load_more_params', [
+        'ajaxurl' => admin_url('admin-ajax.php'),
+    ]);
+}
+add_action('wp_enqueue_scripts', 'load_more_scripts');
+
+function load_more_posts() {
+    $paged = isset($_POST['paged']) ? intval($_POST['paged']) : 1;
+    $cat_id = isset($_POST['cat_id']) ? intval($_POST['cat_id']) : 0;
+
+    $args = [
+        'posts_per_page' => 5,
+        'paged' => $paged,
+    ];
+    if ($cat_id) {
+        $args['cat'] = $cat_id;
+    }
+
+    $query = new WP_Query($args);
+
+    if ($query->have_posts()) {
+        while ($query->have_posts()) {
+            $query->the_post();
+			echo '<div class="post-detail"><h3><a href="'. get_permalink() .'">'. get_the_title() .'</a></h3>';?>
+			<div class="cnt-bx"><?php  echo wp_trim_words(get_the_content(), 25, "..."); ?></div>
+
+			<div class="author-detail">
+	    <span class="author-pic"><?php echo get_avatar( get_the_author_meta( 'ID' )); ?></span> By
+		<span class="author-name"><?php the_author();?></span> on | <?php echo get_the_date(' M dS, Y'); ?>
+	</div>
+</div><?php
+        }
+    }
+
+    wp_reset_postdata(); // Reset query
+    wp_die(); // Ensure proper AJAX response handling
+}
+add_action('wp_ajax_load_more', 'load_more_posts');
+add_action('wp_ajax_nopriv_load_more', 'load_more_posts');
