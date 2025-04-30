@@ -1,0 +1,293 @@
+/**Search.php page **/
+<?php
+$paged = max( 1, get_query_var( 'paged' ) );
+$search_term = get_search_query();
+
+// Number of items per page (including both posts + taxonomy terms)
+$items_per_page = 30;
+
+// 1. Posts/pages/products - FULL PHRASE match
+$posts = [];
+if ( ! empty( $search_term ) ) {
+    $like = '' . $wpdb->esc_like( $search_term ) . '%';
+
+    $post_ids = $wpdb->get_col( $wpdb->prepare(
+        "
+        SELECT ID
+        FROM {$wpdb->posts}
+        WHERE post_status = 'publish'
+          AND post_type IN ('post', 'page', 'product')
+          AND (post_title LIKE %s OR post_content LIKE %s)
+        ",
+        $like, $like
+    ) );
+
+    if ( ! empty( $post_ids ) ) {
+        $posts = $post_ids;
+    }
+}
+
+// 2. Matching service terms - FULL PHRASE match
+$matching_service_terms = [];
+if ( ! empty( $search_term ) ) {
+    $terms = get_terms( [
+        'taxonomy'   => 'service',
+        'hide_empty' => false,
+        'name__like' => $search_term,
+    ] );
+
+    if ( ! is_wp_error( $terms ) ) {
+        $matching_service_terms = $terms;
+    }
+}
+
+// 3. Merge posts and services
+$combined_results = array_merge( $posts, $matching_service_terms );
+
+// 4. Pagination logic
+$total_results = count( $combined_results );
+$total_pages = ceil( $total_results / $items_per_page );
+$wp_query->max_num_pages = $total_pages;
+
+$offset = ( $paged - 1 ) * $items_per_page;
+$paged_results = array_slice( $combined_results, $offset, $items_per_page );
+
+//print_r($paged_results);
+if ( $total_pages > 0 ) {
+	?>
+	<section class="search-result">
+		<div class="container">
+			<header class="alignwide">
+				<h1 class="page-title">
+					<?php
+					printf(
+						esc_html__( 'Results for "%s"', 'twentytwentyone' ),
+						'<span class="page-description search-term">' . esc_html( get_search_query() ) . '</span>'
+					);
+					?>
+				</h1>
+			</header><!-- .page-header -->
+			<div class="search-result-count default-max-width">
+				<?php
+
+				printf(
+					esc_html(
+						/* translators: %d: The number of search results. */
+						_n(
+							'We found %d result for your search.',
+							'We found %d results for your search.',
+							(int) $total_results,
+							'twentytwentyone'
+						)
+					),
+					(int) $total_results
+				);
+				?>
+			</div><!-- .search-result-count -->
+
+			<ul class="blog-listing">
+
+				<?php foreach ($paged_results as $result) : ?>
+				<?php if ( is_object( $result ) && isset( $result->term_id ) ) :
+					// It's a service term: ?>
+					<li class="js-scroll fade-in-bottom">
+						<a href="<?php echo esc_url(get_term_link($result)); ?>">
+						<?php
+						$image_id = get_field('service_image', 'service_' . $result->term_id);
+						$image_url = wp_get_attachment_image_url($image_id,'service-thubnail-330');
+						if ($image_url) {
+							echo '<figure><img src="' . esc_url($image_url) . '" alt="' . esc_attr($result->name) . '"></figure>';
+						}
+						else
+						{
+							echo '<figure><img src="'. get_template_directory_uri().'/assets/images/no_image.png"></figure>';
+						}
+
+						?>
+						<div class="cnt-bx"><p><?php echo esc_html($result->name); ?></p></div>
+						</a>
+					</li>
+				<?php elseif ( is_int( $result ) || is_numeric( $result ) ) :
+						$post_obj = get_post( $result );
+						if ( $post_obj ) :
+						?>
+
+						<li  class="js-scroll fade-in-bottom">
+						<?php $post_type = get_post_type($post_obj); ?>
+							<a href="<?php echo esc_url(get_permalink($post_obj)); ?>">
+								<?php
+								if ($post_type == 'post' || $post_type == 'product') {
+									if (has_post_thumbnail($post_obj->ID)) {
+										echo '<figure>';
+										echo get_the_post_thumbnail($post_obj->ID, 'medium');
+										echo '</figure>';
+									} else {
+										echo '<figure><img src="' . get_template_directory_uri() . '/assets/images/no_image.png" alt="' . esc_attr($post_obj->post_title) . '"></figure>';
+									}
+								} elseif ($post_type == 'page') {
+									if (has_post_thumbnail($post_obj->ID)) {
+										echo '<figure>';
+										echo get_the_post_thumbnail($post_obj->ID, 'medium');
+										echo '</figure>';
+									} else {
+										echo '<figure><img src="' . get_template_directory_uri() . '/assets/images/no_image.png" alt="' . esc_attr($post_obj->post_title) . '"></figure>';
+									}
+								}
+								?>
+								<div class="cnt-bx"><p><?php echo esc_html($post_obj->post_title); ?></p></div>
+							</a>
+						</li>
+				<?php endif;
+				 endif; ?>
+			<?php endforeach; ?>
+			</ul>
+			<!-- Manual Pagination -->
+		<?php if ($total_pages > 1) : ?>
+			<div class="pagination default-max-width">
+				<?php
+				echo paginate_links([
+					'current' => $paged,
+					'total'   => $total_pages,
+				]);
+				?>
+			</div>
+		<?php endif; ?>
+		</div><!-- .container -->
+	</section>
+	<?php
+} else {
+	get_template_part( 'template-parts/content/content-none' );
+}
+?>
+
+
+/******Function.php********/
+
+/*
+ ==================
+ Ajax Search
+======================
+*/
+// add the ajax fetch js
+add_action( 'wp_footer', 'ajax_fetch' );
+function ajax_fetch() {
+?>
+<script type="text/javascript">
+function search_fetch(){
+    jQuery.ajax({
+        url: '<?php echo admin_url("admin-ajax.php"); ?>',
+        type: 'post',
+        data: { action: 'data_fetch', keyword: jQuery('#keyword').val() },
+        success: function(data) {
+            jQuery('#datafetch').html( data );
+        }
+    });
+}
+</script>
+<?php
+}
+// the ajax function
+add_action('wp_ajax_data_fetch' , 'data_fetch');
+add_action('wp_ajax_nopriv_data_fetch','data_fetch');
+
+function data_fetch(){
+	global $wpdb;
+	$search_txt = $_POST['keyword'];
+
+    $the_query = new WP_Query( array( 'posts_per_page' => 6, 'status' => 'publish', 's' => esc_attr( $_POST['keyword'] ),
+	'post_type' => array('product') ) );
+
+
+	$the_page= new WP_Query( array( 'posts_per_page' => 6, 'status' => 'publish', 's' => esc_attr( $_POST['keyword'] ),
+		'post_type' => array('page') ) );
+
+	$the_post= new WP_Query( array( 'posts_per_page' => 6, 'status' => 'publish', 's' => esc_attr( $_POST['keyword'] ),
+			'post_type' => array('post') ) );
+
+
+
+	$like_keyword = '%' . $wpdb->esc_like($search_txt) . '%';
+	 $query = $wpdb->prepare("
+		SELECT t.term_id, t.name
+		FROM {$wpdb->terms} t
+		INNER JOIN {$wpdb->term_taxonomy} tt ON t.term_id = tt.term_id
+		WHERE tt.taxonomy = %s
+		AND t.name LIKE %s
+	", 'service', $like_keyword);
+
+	$matching_terms = $wpdb->get_results($query);
+
+	//if( $the_query->have_posts() ) :
+		echo '<div class="search_box">';
+	if (!empty($matching_terms)) {
+		echo '<div class="combination_box"> 	<h2>Service</h2>';
+		foreach ($matching_terms as $term) {
+			$image_id = get_field('service_image', 'service_' . $term->term_id);
+            $image_url = wp_get_attachment_url($image_id);
+			// Get term link
+			 $term_obj = get_term($term->term_id, 'service');
+            $term_link = get_term_link($term_obj);
+			?>
+			<div class="image_thumb">
+				<a href="<?php echo esc_url( $term_link ); ?>">
+				<?php
+				if ($image_url) {
+					echo '<figure><img src="' . esc_url($image_url) . '" alt="' . esc_attr($term->name) . '"></figure>';
+				}
+				else
+				{
+					echo '<figure><img src="'. get_template_directory_uri().'/assets/images/no_image.png"></figure>';
+				}
+				?>
+				<div class="cnt-bx"><?php echo esc_html($term->name);?></div>
+				</a>
+			</div>
+		<?php }
+		echo '</div>';
+	}
+
+
+		if( $the_query->have_posts() ) {
+		echo '<div class="combination_box"> 	<h2>Products</h2>';
+			while( $the_query->have_posts() ): $the_query->the_post();?>
+				<div class="image_thumb"><a href="<?php echo esc_url( post_permalink() ); ?>"><figure><?php the_post_thumbnail();?></figure>
+				<div class="cnt-bx"><?php the_title();?></div></a>
+				</div>
+		<?php endwhile;
+		echo '</div>';
+		}
+
+
+			if( $the_post->have_posts() ) {
+				echo '<div class="combination_box"> 	<h2>Blogs</h2>';
+				while( $the_post->have_posts() ): $the_post->the_post();?>
+					<div class="image_thumb"><a href="<?php echo esc_url( post_permalink() ); ?>"><figure><?php the_post_thumbnail();?></figure>
+					<div class="cnt-bx"><?php the_title();?></div></a>
+					</div>
+				<?php	endwhile; echo '</div>';
+			}
+
+
+		 	if( $the_page->have_posts() ) {
+				echo '<div class="combination_box"> 	<h2>Page</h2>';
+				while( $the_page->have_posts() ): $the_page->the_post();?>
+					<div class="image_thumb"><a href="<?php echo esc_url( post_permalink() ); ?>"><figure><?php the_post_thumbnail();?></figure>
+						<?php the_title();?></a>
+					</div>
+			<?php	endwhile;
+				echo '</div>';
+			}
+       echo '</div>';
+	   wp_reset_postdata();
+	/*else:
+		echo "No result found";
+    endif;*/
+die();
+}
+function custom_search_query($query) {
+    if ($query->is_main_query() && $query->is_search() && !is_admin()) {
+        $query->set('post_type', array('post', 'page', 'product'));
+    }
+}
+
+add_action('pre_get_posts', 'custom_search_query');
